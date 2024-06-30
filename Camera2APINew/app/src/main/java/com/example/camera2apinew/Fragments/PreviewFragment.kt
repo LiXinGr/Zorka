@@ -117,6 +117,7 @@ class PreviewFragment : Fragment() {
     private lateinit var captureRequestBuilder: CaptureRequest.Builder
     private lateinit var cameraId: String
     private var isRecording = false
+    private var toggle = true
 
 
     // TODO
@@ -1091,6 +1092,8 @@ class PreviewFragment : Fragment() {
         }
     }
 
+    // with setRepeatingRequest
+    /*
     private fun recordSession(){
 
         Log.d("RecordSession", "Record Session is called!!!")
@@ -1139,6 +1142,69 @@ class PreviewFragment : Fragment() {
 
             },backgroundHandler)
     }
+    */
+
+    // with setRepeatingBurst
+    private fun recordSession() {
+        Log.d("RecordSession", "Record Session is called!!!")
+
+        val surfaceTexture = previewTextureView.surfaceTexture
+        surfaceTexture?.setDefaultBufferSize(previewTextureView.width, previewTextureView.height)
+        val textureSurface = Surface(surfaceTexture)
+        val recordSurface = mediaRecorder.surface
+
+        // Choose the appropriate template based on previewControlBool
+        val template = if (previewControlBool) {
+            CameraDevice.TEMPLATE_MANUAL
+        } else {
+            CameraDevice.TEMPLATE_RECORD
+        }
+
+        // Create alternating CaptureRequest objects with different exposure times
+        val captureRequestBuilder1 = cameraDevice.createCaptureRequest(template).apply {
+            addTarget(textureSurface)
+            addTarget(recordSurface)
+            set(CaptureRequest.SENSOR_SENSITIVITY, isoValueProg) // ISO
+            Log.i(TAG, "Denisssssssssssssssssssssssssssss: $exposureTimeValueProg")
+            set(CaptureRequest.SENSOR_EXPOSURE_TIME, exposureTimeValueProg) // Shutter speed (initial value)
+            set(CaptureRequest.LENS_FOCUS_DISTANCE, focusValueProg)
+            set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(frameRateValueProg, frameRateValueProg))
+        }
+
+        val captureRequestBuilder2 = cameraDevice.createCaptureRequest(template).apply {
+            addTarget(textureSurface)
+            addTarget(recordSurface)
+            set(CaptureRequest.SENSOR_SENSITIVITY, isoValueProg) // ISO
+            set(CaptureRequest.SENSOR_EXPOSURE_TIME, 20000000) // Shutter speed (alternate value)
+            set(CaptureRequest.LENS_FOCUS_DISTANCE, focusValueProg)
+            set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(frameRateValueProg, frameRateValueProg))
+        }
+
+        // Create alternating list of CaptureRequest objects
+        val captureRequests = mutableListOf<CaptureRequest>()
+        repeat(10) { // Adjust the number of frames as needed
+            captureRequests.add(captureRequestBuilder1.build())
+            captureRequests.add(captureRequestBuilder2.build())
+        }
+
+        cameraDevice.createCaptureSession(
+            listOf(textureSurface, recordSurface),
+            object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(session: CameraCaptureSession) {
+                    captureSession = session
+                    captureSession.setRepeatingBurst(captureRequests, null, backgroundHandler)
+                    if (!isRecording) {
+                        mediaRecorder.start()
+                        isRecording = true
+                    }
+                }
+
+                override fun onConfigureFailed(session: CameraCaptureSession) {
+                    Log.e("onConfigured", "Creating record session failed!")
+                }
+            }, backgroundHandler)
+    }
+
 
     private fun startRecordSession(){
         startChronometer()
